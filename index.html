@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ניהול לידים – Candidate Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="container header-inner">
+      <div>
+        <h1>ניהול לידים ומועמדים</h1>
+        <p class="subtitle">עם מי צריך לדבר עכשיו, ומה צריך לעשות איתו</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost" id="exportCsvBtn">ייצוא ל-CSV</button>
+        <button type="button" class="btn btn-ghost" id="importCsvBtn">ייבוא מ-CSV</button>
+        <input type="file" id="importCsvInput" accept=".csv,text/csv" hidden>
+        <button type="button" class="btn btn-primary" id="addLeadBtn">+ הוסף ליד</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 4.1 Summary area -->
+    <section class="summary" aria-label="סיכום">
+      <button type="button" class="card" data-card="all">
+        <span class="card-label">סך כל הלידים</span>
+        <span class="card-value" id="statTotal">0</span>
+      </button>
+      <button type="button" class="card" data-card="new">
+        <span class="card-label">לידים חדשים</span>
+        <span class="card-value" id="statNew">0</span>
+      </button>
+      <button type="button" class="card" data-card="inProgress">
+        <span class="card-label">לידים בתהליך</span>
+        <span class="card-value" id="statInProgress">0</span>
+      </button>
+      <button type="button" class="card card-alert" data-card="followUp">
+        <span class="card-label">Follow-up נדרש</span>
+        <span class="card-value" id="statFollowUp">0</span>
+      </button>
+      <button type="button" class="card" data-card="meeting">
+        <span class="card-label">פגישות שנקבעו</span>
+        <span class="card-value" id="statMeeting">0</span>
+      </button>
+      <button type="button" class="card card-success" data-card="closed">
+        <span class="card-label">נסגרו בהצלחה</span>
+        <span class="card-value" id="statClosed">0</span>
+      </button>
+    </section>
+
+    <!-- 4.2 Search & filters -->
+    <section class="filters" aria-label="חיפוש וסינון">
+      <div class="field field-search">
+        <label for="searchInput">חיפוש</label>
+        <input type="search" id="searchInput" placeholder="שם, טלפון או אימייל">
+      </div>
+      <div class="field">
+        <label for="statusFilter">סטטוס</label>
+        <select id="statusFilter"></select>
+      </div>
+      <div class="field">
+        <label for="interestFilter">רמת עניין</label>
+        <select id="interestFilter"></select>
+      </div>
+      <div class="field">
+        <label for="followUpFilter">Follow-up</label>
+        <select id="followUpFilter">
+          <option value="">הכל</option>
+          <option value="due">נדרש (היום + באיחור)</option>
+          <option value="overdue">באיחור</option>
+          <option value="today">היום</option>
+          <option value="upcoming">עתידי</option>
+          <option value="none">ללא תאריך</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-ghost" id="clearFiltersBtn">נקה סינונים</button>
+    </section>
+
+    <!-- 4.3 Leads table -->
+    <section class="table-section">
+      <p class="results-count" id="resultsCount"></p>
+      <div class="table-wrap">
+        <table class="leads-table">
+          <thead>
+            <tr>
+              <th>שם</th>
+              <th>טלפון</th>
+              <th>אימייל</th>
+              <th>מקור הליד</th>
+              <th>סטטוס</th>
+              <th>רמת עניין</th>
+              <th>שיחה אחרונה</th>
+              <th>Follow-up הבא</th>
+              <th>פעולה הבאה</th>
+              <th>הערה קצרה</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="leadsBody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="emptyState" hidden>לא נמצאו לידים התואמים לחיפוש.</p>
+    </section>
+  </main>
+
+  <footer class="container app-footer">
+    <span>הנתונים נשמרים בדפדפן זה בלבד (localStorage).</span>
+    <button type="button" class="link-btn" id="resetDataBtn">איפוס לנתוני דוגמה</button>
+  </footer>
+
+  <!-- Add / Edit lead form (sections 7–8) -->
+  <dialog id="leadDialog" class="dialog">
+    <form id="leadForm" class="lead-form">
+      <h2 id="dialogTitle">הוספת ליד</h2>
+      <input type="hidden" id="leadId">
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="fName">שם <span class="required">*</span></label>
+          <input type="text" id="fName" required>
+        </div>
+        <div class="field">
+          <label for="fPhone">טלפון</label>
+          <input type="tel" id="fPhone" dir="ltr">
+        </div>
+        <div class="field">
+          <label for="fEmail">אימייל</label>
+          <input type="email" id="fEmail" dir="ltr">
+        </div>
+        <div class="field">
+          <label for="fSource">מקור הליד</label>
+          <input type="text" id="fSource" list="sourceOptions" placeholder="לדוגמה: פייסבוק, הפניה">
+          <datalist id="sourceOptions"></datalist>
+        </div>
+        <div class="field">
+          <label for="fStatus">סטטוס</label>
+          <select id="fStatus"></select>
+        </div>
+        <div class="field">
+          <label for="fInterest">רמת עניין</label>
+          <select id="fInterest"></select>
+        </div>
+        <div class="field">
+          <label for="fLastCall">תאריך שיחה אחרונה</label>
+          <input type="date" id="fLastCall">
+        </div>
+        <div class="field">
+          <label for="fFollowUp">תאריך Follow-up</label>
+          <input type="date" id="fFollowUp">
+        </div>
+        <div class="field field-wide">
+          <label for="fNextAction">פעולה הבאה</label>
+          <input type="text" id="fNextAction">
+        </div>
+        <div class="field field-wide">
+          <label for="fNotes">הערות</label>
+          <textarea id="fNotes" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">שמירה</button>
+        <button type="button" class="btn btn-ghost" id="cancelBtn">ביטול</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/csv.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

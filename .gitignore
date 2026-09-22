@@ -1,0 +1,4 @@
+exports/
+*.tmp
+.DS_Store
+Thumbs.db
