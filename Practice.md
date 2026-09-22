@@ -179,10 +179,51 @@ After implementation:
 
 ## 9. Git ו-GitHub
 
-טרם בוצע.
-סעיף זה יעודכן לאחר יצירת Git repository, העלאת הפרויקט ל-GitHub ופרסום ב-GitHub Pages.
+### 9.1 קובץ `.gitignore`
+
+לפני יצירת ה-repository נוצר בתיקיית הפרויקט קובץ `.gitignore` עם הכללים: `exports/`, `*.tmp`, `.DS_Store`, `Thumbs.db`.
+
+### 9.2 יצירת Git repository מקומי
+
+- `git init -b main`: ה-repository נוצר בתיקיית הפרויקט, והענף הראשי נקרא `main`.
+- לפני ההוספה ל-staging בוצעה בדיקה עם `git status`. נמצאו 8 קבצים של הפרויקט, ואף קובץ CSV לא נמצא בתיקייה.
+- בדיקה עם `git check-ignore` אישרה שהתיקייה `exports/` וקבצים בתוכה לא נכללים ב-repository.
+- שם המשתמש והאימייל של Git כבר היו מוגדרים מראש, ולא שונו.
+
+### 9.3 Commit ראשון
+
+- הקבצים שנוספו: `.gitignore`, `Practice.md`, `README.md`, `SPEC.md`, `css/style.css`, `index.html`, `js/app.js`, `js/csv.js`.
+- הודעת ה-commit: `Initial working version of Candidate Pipeline Dashboard` (commit `bf22926`).
+
+### 9.4 יצירת repository ב-GitHub
+
+- נבדק שחשבון GitHub CLI המחובר הוא `roee-aido`, ושעדיין אין בחשבון repository בשם הזה.
+- ה-repository נוצר כ-Public עם `gh repo create`. GitHub לא יצר README, `.gitignore` או רישיון, כי הקבצים האלה כבר היו קיימים מקומית.
+- כתובת ה-repository: https://github.com/roee-aido/Candidate-Pipeline-Dashboard
+
+### 9.5 Push ל-main
+
+- ה-repository המקומי חובר ל-GitHub כ-remote בשם `origin`.
+- הענף `main` נדחף ל-GitHub. נבדק שה-commit האחרון ב-GitHub (`bf22926`) זהה ל-commit המקומי.
+
+### 9.6 פרסום ב-GitHub Pages
+
+- GitHub Pages הופעל דרך ה-API של GitHub (`gh api`). הפרסום הוא מהענף `main`, מתיקיית השורש (`/`).
+- לא נדרש שינוי בקוד האפליקציה. הפרויקט מורכב מקבצים סטטיים בלבד עם נתיבים יחסיים, ולכן עובד כמו שהוא.
+- ה-build הראשון הסתיים בהצלחה (סטטוס `built`, בלי שגיאות).
+- בדיקות על האתר החי:
+  - `index.html`, `css/style.css`, `js/csv.js` ו-`js/app.js` נטענים עם HTTP 200.
+  - האתר נפתח בדפדפן המובנה של Claude Code. ה-CSS וה-JavaScript נטענו, 12 לידי הדוגמה ו-6 כרטיסי הסיכום הוצגו, ולא היו שגיאות ב-Console.
+  - הדף מוצג בעברית ובכיוון RTL: `dir="rtl"` ו-`lang="he"`, הכותרת בצד ימין, והעמודה "שם" היא הימנית בטבלה.
+  - הכפתור "ייצוא ל-CSV" יצר קובץ UTF-8 עם BOM ו-13 שורות (כותרות ו-12 לידים).
+  - הכפתור "ייבוא מ-CSV" פותח את חלון בחירת הקובץ. ייבוא חוזר של הקובץ שיוצא הוסיף 12 לידים, וכל השדות בעברית נשמרו בלי שינוי.
+  - בדיקת הייבוא והייצוא בוצעה בהרצת JavaScript בדף, באותה שיטה כמו בסעיף 8. בסיום נוקו נתוני הבדיקה מהדפדפן.
+
+### 9.7 כתובת האתר הסופית
+
+**https://roee-aido.github.io/Candidate-Pipeline-Dashboard/**
 
 ## 10. סטטוס נוכחי
 
-גרסה 1 של ה-Dashboard עובדת באופן מקומי, כולל ייבוא וייצוא CSV.
-השלב הבא: יצירת Git repository, העלאה ל-GitHub ופרסום ב-GitHub Pages.
+גרסה 1 של ה-Dashboard, כולל ייבוא וייצוא CSV, נמצאת ב-GitHub ומפורסמת ב-GitHub Pages:
+https://roee-aido.github.io/Candidate-Pipeline-Dashboard/
