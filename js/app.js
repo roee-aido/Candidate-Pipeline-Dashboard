@@ -202,6 +202,10 @@ function renderSummary() {
   $('statFollowUp').textContent = count(needsFollowUp);
   $('statMeeting').textContent = count((l) => l.status === 'meeting');
   $('statClosed').textContent = count((l) => l.status === 'closed');
+
+  // Show how many duplicates exist on the button itself.
+  const duplicates = findDuplicateIds().length;
+  $('removeDuplicatesBtn').textContent = duplicates ? `הסרת כפילויות (${duplicates})` : 'הסרת כפילויות';
 }
 
 function getFilteredLeads() {
@@ -377,6 +381,40 @@ function deleteLead(id) {
   leads = leads.filter((l) => l.id !== id);
   saveLeads();
   render();
+}
+
+// ---------- Duplicates ----------
+// A duplicate is a lead whose data fields are all identical to an earlier lead
+// (the internal id is ignored). The first copy is kept.
+
+const LEAD_FIELDS = ['name', 'phone', 'email', 'source', 'status', 'interest',
+  'lastCallDate', 'followUpDate', 'nextAction', 'notes'];
+
+function findDuplicateIds() {
+  const seen = new Set();
+  const duplicateIds = [];
+  for (const lead of leads) {
+    const key = JSON.stringify(LEAD_FIELDS.map((f) => String(lead[f] ?? '').trim()));
+    if (seen.has(key)) duplicateIds.push(lead.id);
+    else seen.add(key);
+  }
+  return duplicateIds;
+}
+
+function removeDuplicates() {
+  const ids = new Set(findDuplicateIds());
+  if (ids.size === 0) {
+    alert('לא נמצאו כפילויות.\nאין לידים שכל הפרטים שלהם זהים.');
+    return;
+  }
+
+  const found = ids.size === 1 ? 'נמצא ליד כפול אחד' : `נמצאו ${ids.size} לידים כפולים`;
+  if (!confirm(`${found} (כל הפרטים זהים לליד אחר).\nמכל קבוצה יישאר ליד אחד, והעותקים הנוספים יימחקו.\nלא ניתן לבטל פעולה זו. להמשיך?`)) return;
+
+  leads = leads.filter((l) => !ids.has(l.id));
+  saveLeads();
+  render();
+  alert(ids.size === 1 ? 'ליד כפול אחד הוסר.' : `הוסרו ${ids.size} לידים כפולים.`);
 }
 
 // ---------- Filters ----------
@@ -659,6 +697,7 @@ function init() {
   );
 
   // CSV: the visible button opens the hidden file input.
+  $('removeDuplicatesBtn').addEventListener('click', removeDuplicates);
   $('exportCsvBtn').addEventListener('click', exportCSV);
   $('importCsvBtn').addEventListener('click', () => $('importCsvInput').click());
   $('importCsvInput').addEventListener('change', async (e) => {
