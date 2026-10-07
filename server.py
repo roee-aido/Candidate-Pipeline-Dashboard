@@ -339,7 +339,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path in ("/", ""):
             path = "/index.html"
         rel = path.lstrip("/")
-        allowed = rel == "index.html" or (rel.startswith(("css/", "js/")) and Path(rel).suffix in STATIC_TYPES)
+        allowed = rel in ("index.html", "forecast.html") or (rel.startswith(("css/", "js/")) and Path(rel).suffix in STATIC_TYPES)
         file = (ROOT / rel).resolve()
         if not allowed or ROOT not in file.parents or not file.is_file():
             return self.send_json(404, {"error": "NOT_FOUND"})

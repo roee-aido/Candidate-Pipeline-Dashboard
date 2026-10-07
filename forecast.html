@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>תחזית ים – Candidate Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="container header-inner">
+      <div>
+        <h1>תחזית ים</h1>
+        <p class="subtitle">גובה, כיוון ומחזור גלים ל-48 השעות הקרובות</p>
+      </div>
+      <div class="header-actions">
+        <a href="index.html" class="btn btn-ghost">→ חזרה לדשבורד</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container forecast-page">
+    <section class="panel">
+      <div class="forecast-controls">
+        <div class="segmented" role="group" aria-label="בחירת מיקום">
+          <button type="button" class="seg-btn" data-loc="hadera">חדרה</button>
+          <button type="button" class="seg-btn" data-loc="netanya">נתניה</button>
+          <button type="button" class="seg-btn" data-loc="telaviv">תל אביב</button>
+        </div>
+        <button type="button" class="btn btn-ghost" id="refreshBtn">רענון</button>
+      </div>
+
+      <div id="forecastStatus" aria-live="polite"></div>
+      <div id="forecastContent"></div>
+    </section>
+
+    <p class="notice notice-warn forecast-disclaimer">
+      המידע הוא תחזית ממודל מספרי של גלים ברזולוציה של כ-8 ק"מ, ודיוקו ליד החוף מוגבל.
+      הוא לא מיועד לניווט ימי או להחלטות בטיחות.
+    </p>
+  </main>
+
+  <footer class="container app-footer">
+    <span>
+      <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="credit" dir="ltr">Weather data by Open-Meteo.com</a>
+      · רישיון <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>
+      · <a href="https://open-meteo.com/en/licence" target="_blank" rel="noopener">מקורות הנתונים</a>
+      · הערכים עוגלו לתצוגה, והכיוון הומר גם לכיוון מילולי.
+    </span>
+  </footer>
+
+  <script src="js/forecast-page.js"></script>
+</body>
+</html>
