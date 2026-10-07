@@ -2,3 +2,7 @@ exports/
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Local secrets (Apify token) - never commit
+.env
+__pycache__/

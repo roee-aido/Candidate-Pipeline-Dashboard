@@ -10,6 +10,7 @@ const STORAGE_KEY = 'candidatePipeline.leads.v1';
 const STATUSES = [
   { key: 'new',        label: 'ליד חדש' },
   { key: 'contacted',  label: 'נוצר קשר' },
+  { key: 'infoSent',   label: 'נשלח מידע' },
   { key: 'called',     label: 'שיחה התקיימה' },
   { key: 'followup',   label: 'Follow-up' },
   { key: 'meeting',    label: 'פגישה נקבעה' },
@@ -25,10 +26,10 @@ const INTEREST_LEVELS = [
   { key: 'unknown', label: 'לא ידוע' },
 ];
 
-const SOURCES = ['פייסבוק', 'אינסטגרם', 'LinkedIn', 'אתר', 'הפניה', 'וובינר', 'טלפון נכנס'];
+const SOURCES = ['פייסבוק', 'אינסטגרם', 'LinkedIn', 'Google', 'אתר', 'הפניה', 'וובינר', 'כנס', 'טלפון נכנס'];
 
 // Statuses counted as "in progress" in the summary cards.
-const IN_PROGRESS_STATUSES = ['contacted', 'called', 'followup', 'hesitant'];
+const IN_PROGRESS_STATUSES = ['contacted', 'infoSent', 'called', 'followup', 'hesitant'];
 
 // Leads in these statuses no longer need a follow-up.
 const FINISHED_STATUSES = ['closed', 'irrelevant'];
@@ -136,7 +137,7 @@ function saveLeads(list = leads) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch (err) {
-    alert('לא ניתן לשמור את הנתונים בדפדפן.');
+    showMessage('לא ניתן לשמור את הנתונים בדפדפן.');
     console.error(err);
   }
 }
@@ -186,6 +187,33 @@ const els = {
     notes: $('fNotes'),
   },
 };
+
+// ---------- In-page dialogs ----------
+// Used instead of the browser's alert() / confirm(): some browsers (e.g. embedded
+// or in-app browsers) block native dialogs, and confirm() then silently returns false.
+
+function openMessageDialog(text, withCancel, okLabel) {
+  const dialog = $('messageDialog');
+  $('messageText').textContent = text;
+  $('messageOkBtn').textContent = okLabel;
+  $('messageCancelBtn').hidden = !withCancel;
+  dialog.returnValue = '';
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true });
+    dialog.showModal();
+    $('messageOkBtn').focus();
+  });
+}
+
+// Shows a message with an OK button.
+function showMessage(text) {
+  return openMessageDialog(text, false, 'אישור');
+}
+
+// Asks for confirmation. Resolves true only if the user clicked the OK button.
+function askConfirm(text, okLabel = 'אישור') {
+  return openMessageDialog(text, true, okLabel);
+}
 
 // ---------- Rendering ----------
 
@@ -276,7 +304,10 @@ function renderRow(lead) {
 
   return `
     <tr class="${state ? 'row-' + state : ''}">
-      <td data-label="שם" class="cell-name">${escapeHTML(lead.name)}</td>
+      <td data-label="שם" class="cell-name">
+        <a href="#lead/${encodeURIComponent(lead.id)}" class="lead-link">${escapeHTML(lead.name)}</a>
+        ${lead.editedLocally ? '<span class="local-tag" title="נערך בדשבורד בלבד. Sync מ-Airtable יחליף את השינויים">נערך מקומית</span>' : ''}
+      </td>
       <td data-label="טלפון">${phone}</td>
       <td data-label="אימייל">${email}</td>
       <td data-label="מקור">${escapeHTML(lead.source) || '<span class="muted">—</span>'}</td>
@@ -300,9 +331,13 @@ function renderTable() {
   els.resultsCount.textContent = `מוצגים ${visible.length} מתוך ${leads.length} לידים`;
 }
 
+// Other views (e.g. the lead details page in lead-page.js) register here to re-render when data changes.
+const renderHooks = [];
+
 function render() {
   renderSummary();
   renderTable();
+  renderHooks.forEach((hook) => hook());
 }
 
 // ---------- Add / edit form ----------
@@ -329,6 +364,10 @@ function openForm(lead) {
     f.status.value = 'new';
     f.interest.value = 'unknown';
   }
+  // Airtable sync is one-way, so be explicit about where the change is saved.
+  $('formNote').textContent = lead && isAirtableId(lead.id)
+    ? 'השינויים נשמרים בדפדפן הזה בלבד ולא מעדכנים את Airtable. Sync מ-Airtable יחליף אותם בערכים מ-Airtable.'
+    : 'הליד נשמר בדפדפן הזה בלבד ולא נוסף ל-Airtable. Sync מ-Airtable ימחק אותו.';
   els.dialog.showModal();
   f.name.focus();
 }
@@ -362,7 +401,8 @@ function handleSubmit(event) {
 
   const id = f.id.value;
   if (id) {
-    leads = leads.map((l) => (l.id === id ? { ...l, ...data } : l));
+    // Edits are saved in this browser only. A synced lead is marked so the next Sync can warn before overwriting it.
+    leads = leads.map((l) => (l.id === id ? { ...l, ...data, editedLocally: isAirtableId(l.id) || undefined } : l));
   } else {
     leads.push({ id: generateId(), ...data });
   }
@@ -374,10 +414,10 @@ function handleSubmit(event) {
 
 // ---------- Delete (section 9) ----------
 
-function deleteLead(id) {
+async function deleteLead(id) {
   const lead = leads.find((l) => l.id === id);
   if (!lead) return;
-  if (!confirm(`למחוק את הליד "${lead.name}"?\nלא ניתן לבטל פעולה זו.`)) return;
+  if (!(await askConfirm(`למחוק את הליד "${lead.name}"?\nלא ניתן לבטל פעולה זו.`, 'מחיקה'))) return;
   leads = leads.filter((l) => l.id !== id);
   saveLeads();
   render();
@@ -401,20 +441,20 @@ function findDuplicateIds() {
   return duplicateIds;
 }
 
-function removeDuplicates() {
+async function removeDuplicates() {
   const ids = new Set(findDuplicateIds());
   if (ids.size === 0) {
-    alert('לא נמצאו כפילויות.\nאין לידים שכל הפרטים שלהם זהים.');
+    await showMessage('לא נמצאו כפילויות.\nאין לידים שכל הפרטים שלהם זהים.');
     return;
   }
 
   const found = ids.size === 1 ? 'נמצא ליד כפול אחד' : `נמצאו ${ids.size} לידים כפולים`;
-  if (!confirm(`${found} (כל הפרטים זהים לליד אחר).\nמכל קבוצה יישאר ליד אחד, והעותקים הנוספים יימחקו.\nלא ניתן לבטל פעולה זו. להמשיך?`)) return;
+  if (!(await askConfirm(`${found} (כל הפרטים זהים לליד אחר).\nמכל קבוצה יישאר ליד אחד, והעותקים הנוספים יימחקו.\nלא ניתן לבטל פעולה זו. להמשיך?`, 'הסרה'))) return;
 
   leads = leads.filter((l) => !ids.has(l.id));
   saveLeads();
   render();
-  alert(ids.size === 1 ? 'ליד כפול אחד הוסר.' : `הוסרו ${ids.size} לידים כפולים.`);
+  await showMessage(ids.size === 1 ? 'ליד כפול אחד הוסר.' : `הוסרו ${ids.size} לידים כפולים.`);
 }
 
 // ---------- Filters ----------
@@ -460,7 +500,7 @@ const normalizeHeader = (text) => text.trim().replace(/\s+/g, ' ').toLowerCase()
 
 function exportCSV() {
   if (leads.length === 0) {
-    alert('אין לידים לייצוא.');
+    showMessage('אין לידים לייצוא.');
     return;
   }
 
@@ -603,11 +643,11 @@ async function importCSV(file) {
   if (!file) return;
 
   if (!/\.csv$/i.test(file.name)) {
-    alert('הקובץ שנבחר אינו קובץ CSV.\nיש לבחור קובץ עם סיומת .csv');
+    await showMessage('הקובץ שנבחר אינו קובץ CSV.\nיש לבחור קובץ עם סיומת .csv');
     return;
   }
   if (file.size > MAX_IMPORT_BYTES) {
-    alert('הקובץ גדול מדי לייבוא (מעל 2MB).');
+    await showMessage('הקובץ גדול מדי לייבוא (מעל 2MB).');
     return;
   }
 
@@ -616,16 +656,16 @@ async function importCSV(file) {
     result = buildLeadsFromRows(parseCSV(await file.text()));
   } catch (err) {
     console.error(err);
-    alert('לא ניתן לקרוא את הקובץ. ודאו שזהו קובץ CSV תקין בקידוד UTF-8.');
+    await showMessage('לא ניתן לקרוא את הקובץ. ודאו שזהו קובץ CSV תקין בקידוד UTF-8.');
     return;
   }
 
   if (result.error) {
-    alert('הקובץ אינו תקין ולא יובא.\n\n' + result.error);
+    await showMessage('הקובץ אינו תקין ולא יובא.\n\n' + result.error);
     return;
   }
   if (result.leads.length === 0) {
-    alert('לא נמצאו בקובץ לידים עם שם. אף ליד לא יובא.');
+    await showMessage('לא נמצאו בקובץ לידים עם שם. אף ליד לא יובא.');
     return;
   }
 
@@ -646,13 +686,277 @@ async function importCSV(file) {
   }
   lines.push('', 'הלידים יתווספו ללידים הקיימים (הקיימים לא יימחקו). להמשיך?');
 
-  if (!confirm(lines.join('\n'))) return;
+  if (!(await askConfirm(lines.join('\n'), 'ייבוא'))) return;
 
   leads.push(...result.leads);
   saveLeads();
   clearFilters(); // make sure the new leads are visible
   render();
-  alert(result.leads.length === 1 ? 'ליד אחד יובא בהצלחה.' : `יובאו ${result.leads.length} לידים בהצלחה.`);
+  await showMessage(result.leads.length === 1 ? 'ליד אחד יובא בהצלחה.' : `יובאו ${result.leads.length} לידים בהצלחה.`);
+}
+
+// ---------- Airtable sync ----------
+// Reads all leads from the Airtable table and replaces the local data (one-way: Airtable → dashboard).
+// The access token is entered by the user and saved only in this browser, never in the code.
+
+const AIRTABLE = {
+  baseId: 'app5APDMGqHcfYb4K',  // "Candidate Pipeline" base
+  tableId: 'tblTucesoQPzKrIfc', // "לידים" table
+  // Field IDs stay the same even if a field is renamed in Airtable.
+  fields: {
+    name:         'fldE7G9MXrvAUs0jD',
+    phone:        'fldetCtrsppLwUzPK',
+    email:        'fldwDsw3fxUZcCu3o',
+    source:       'fldssjyIK9XAyDcRu',
+    status:       'fldx1CoOfjqtHVg2q',
+    interest:     'fldhUUMMM8q6E9Wsr',
+    lastCallDate: 'fld7BEm7iGXefVYVj',
+    followUpDate: 'fldd6TvnbqduyFJOr',
+    nextAction:   'fldmhDIIYElUXCNwh',
+    notes:        'fldAZQEBB8HDt6eyP',
+  },
+};
+
+const TOKEN_KEY = 'candidatePipeline.airtableToken';
+const LAST_SYNC_KEY = 'candidatePipeline.lastSync';
+
+const AIRTABLE_PAGE_SIZE = 100; // Airtable's maximum per request
+const AIRTABLE_MAX_PAGES = 50;  // safety limit (5,000 records) so a bad response can't loop forever
+
+// A lead whose id is an Airtable record id came from Airtable; any other id was created in the dashboard.
+const isAirtableId = (id) => /^rec[A-Za-z0-9]{14}$/.test(id);
+
+function storageGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function storageSet(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// An error response from Airtable: HTTP status plus Airtable's error type (e.g. AUTHENTICATION_REQUIRED).
+class AirtableError extends Error {
+  constructor(status, type) {
+    super(`Airtable HTTP ${status}${type ? ` (${type})` : ''}`);
+    this.status = status;
+    this.type = type;
+  }
+}
+
+// Fetches every record in the table, following Airtable's pagination.
+async function fetchAirtableRecords(token, pageSize = AIRTABLE_PAGE_SIZE) {
+  const records = [];
+  let offset = '';
+  let pages = 0;
+  do {
+    const url = new URL(`https://api.airtable.com/v0/${AIRTABLE.baseId}/${AIRTABLE.tableId}`);
+    url.searchParams.set('returnFieldsByFieldId', 'true');
+    url.searchParams.set('pageSize', String(pageSize));
+    if (offset) url.searchParams.set('offset', offset);
+
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new AirtableError(res.status, body?.error?.type || '');
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data.records)) throw new Error('Unexpected Airtable response: no records array');
+    records.push(...data.records);
+    offset = data.offset || '';
+    pages++;
+    if (offset && pages >= AIRTABLE_MAX_PAGES) throw new Error(`Stopped after ${pages} pages`);
+  } while (offset);
+  return records;
+}
+
+// Turns a failed sync into a message for the user, and says whether the saved token should be forgotten.
+function describeSyncError(err) {
+  if (err instanceof AirtableError) {
+    if (err.status === 401) {
+      return { forgetToken: true, text: 'Airtable דחה את מפתח הגישה (המפתח שגוי, נמחק או פג תוקף).\nבלחיצה הבאה על Sync תתבקשו להזין מפתח חדש.' };
+    }
+    if (err.status === 403 || err.status === 404) {
+      return { forgetToken: true, text: 'למפתח הגישה אין הרשאה לבסיס "Candidate Pipeline" או לטבלה "לידים", או שהטבלה לא נמצאה.\nצרו מפתח עם ההרשאה data.records:read וגישה לבסיס הזה, והזינו אותו בלחיצה הבאה על Sync.' };
+    }
+    if (err.status === 429) {
+      return { forgetToken: false, text: 'נשלחו יותר מדי בקשות ל-Airtable בזמן קצר.\nהמתינו כחצי דקה ונסו שוב.' };
+    }
+    if (err.status >= 500) {
+      return { forgetToken: false, text: `Airtable לא זמין כרגע (שגיאה ${err.status}).\nנסו שוב בעוד כמה דקות. הנתונים בדשבורד לא שונו.` };
+    }
+    return { forgetToken: false, text: `Airtable החזיר שגיאה (${err.status}${err.type ? `, ${err.type}` : ''}). הנתונים בדשבורד לא שונו.` };
+  }
+  if (err instanceof TypeError) {
+    return { forgetToken: false, text: 'אין חיבור ל-Airtable. בדקו את החיבור לאינטרנט ונסו שוב.\nהנתונים בדשבורד לא שונו.' };
+  }
+  return { forgetToken: false, text: 'הסנכרון עם Airtable נכשל בגלל תשובה לא צפויה. הנתונים בדשבורד לא שונו.' };
+}
+
+// Converts one Airtable record to a lead. Returns null for a record without a name.
+function leadFromAirtable(record, warnings) {
+  const F = AIRTABLE.fields;
+  const text = (field) => String(record.fields[F[field]] ?? '').trim();
+  const name = text('name');
+  if (!name) return null;
+
+  let status = 'new';
+  if (text('status')) {
+    status = matchOption(STATUSES, text('status'));
+    if (!status) {
+      warnings.push(`${name}: סטטוס לא מוכר "${text('status')}", הוגדר "ליד חדש"`);
+      status = 'new';
+    }
+  }
+
+  let interest = 'unknown';
+  if (text('interest')) {
+    interest = matchOption(INTEREST_LEVELS, text('interest'));
+    if (!interest) {
+      warnings.push(`${name}: רמת עניין לא מוכרת "${text('interest')}", הוגדר "לא ידוע"`);
+      interest = 'unknown';
+    }
+  }
+
+  const date = (field, label) => {
+    const parsed = parseDateCell(text(field));
+    if (parsed === null) warnings.push(`${name}: ${label} לא תקין "${text(field)}", השדה נשאר ריק`);
+    return parsed || '';
+  };
+
+  return {
+    id: record.id, // the Airtable record ID keeps each lead's identity stable across syncs
+    name,
+    phone: text('phone'),
+    email: text('email'),
+    source: text('source'),
+    status,
+    interest,
+    lastCallDate: date('lastCallDate', 'תאריך שיחה אחרונה'),
+    followUpDate: date('followUpDate', 'תאריך Follow-up'),
+    nextAction: text('nextAction'),
+    notes: text('notes'),
+  };
+}
+
+// Opens the token dialog. Resolves with the saved token, or null if the user cancelled.
+function askForToken() {
+  const dialog = $('tokenDialog');
+  const input = $('tokenInput');
+  input.value = '';
+  dialog.returnValue = '';
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => {
+      const token = dialog.returnValue === 'save' ? input.value.trim() : '';
+      if (token) storageSet(TOKEN_KEY, token);
+      resolve(token || null);
+    }, { once: true });
+    dialog.showModal();
+    input.focus();
+  });
+}
+
+function setSyncBusy(busy) {
+  const btn = $('syncBtn');
+  btn.disabled = busy;
+  btn.textContent = busy ? 'מסנכרן…' : 'Sync מ-Airtable';
+}
+
+async function syncFromAirtable() {
+  const token = storageGet(TOKEN_KEY) || (await askForToken());
+  if (!token) return;
+
+  // The button shows "מסנכרן…" only while waiting for Airtable, not while a dialog is open.
+  let records;
+  let error = null;
+  setSyncBusy(true);
+  try {
+    records = await fetchAirtableRecords(token);
+  } catch (err) {
+    error = err;
+  }
+  setSyncBusy(false);
+
+  if (error) {
+    console.error(error);
+    const { forgetToken, text } = describeSyncError(error);
+    if (forgetToken) {
+      storageSet(TOKEN_KEY, null); // a rejected token is forgotten so the next Sync asks again
+      renderSyncStatus();
+    }
+    await showMessage(text);
+    return;
+  }
+
+  if (records.length === 0) {
+    await showMessage('הטבלה ב-Airtable ריקה. הנתונים בדשבורד לא שונו.');
+    return;
+  }
+
+  const warnings = [];
+  const synced = [];
+  let skipped = 0;
+  for (const record of records) {
+    const lead = leadFromAirtable(record, warnings);
+    if (lead) synced.push(lead);
+    else skipped++;
+  }
+
+  // Confirmation before replacing the local data.
+  // What would be lost: edits made only in the dashboard, and leads that exist only here.
+  const editedHere = leads.filter((l) => isAirtableId(l.id) && l.editedLocally).length;
+  const onlyHere = leads.filter((l) => !isAirtableId(l.id)).length;
+
+  const lines = [
+    `נמצאו ${synced.length} לידים ב-Airtable.`,
+    'הנתונים בדשבורד יוחלפו בנתונים מ-Airtable.',
+  ];
+  if (editedHere) {
+    lines.push(editedHere === 1
+      ? '⚠ ליד אחד נערך בדשבורד בלבד. העריכות שלו יוחלפו בערכים מ-Airtable.'
+      : `⚠ ${editedHere} לידים נערכו בדשבורד בלבד. העריכות שלהם יוחלפו בערכים מ-Airtable.`);
+  }
+  if (onlyHere) {
+    lines.push(onlyHere === 1
+      ? '⚠ ליד אחד קיים רק בדשבורד (נוסף כאן או מנתוני הדוגמה) ויימחק.'
+      : `⚠ ${onlyHere} לידים קיימים רק בדשבורד (נוספו כאן או מנתוני הדוגמה) ויימחקו.`);
+  }
+  if (!editedHere && !onlyHere) lines.push('אין בדשבורד שינויים מקומיים שיאבדו.');
+  if (skipped) lines.push(skipped === 1 ? 'רשומה אחת בלי שם תדולג.' : `${skipped} רשומות בלי שם ידולגו.`);
+  if (warnings.length) {
+    lines.push('', 'הערות:', ...warnings.slice(0, 5));
+    if (warnings.length > 5) lines.push(`ועוד ${warnings.length - 5} הערות נוספות.`);
+  }
+  lines.push('', 'להמשיך?');
+  if (!(await askConfirm(lines.join('\n'), 'החלפת הנתונים'))) return;
+
+  leads = synced;
+  saveLeads();
+  storageSet(LAST_SYNC_KEY, new Date().toISOString());
+  clearFilters();
+  render();
+  renderSyncStatus();
+  await showMessage(`סונכרנו ${synced.length} לידים מ-Airtable.`);
+}
+
+async function disconnectAirtable() {
+  if (!(await askConfirm('למחוק את מפתח הגישה של Airtable מהדפדפן הזה?\nהלידים שכבר מוצגים יישארו.', 'ניתוק'))) return;
+  storageSet(TOKEN_KEY, null);
+  renderSyncStatus();
+}
+
+// Footer line: when the data was last synced, and whether a token is saved.
+function renderSyncStatus() {
+  const lastSync = storageGet(LAST_SYNC_KEY);
+  $('syncStatus').textContent = lastSync
+    ? `סונכרן לאחרונה מ-Airtable: ${new Date(lastSync).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}. הנתונים נשמרים בדפדפן זה.`
+    : 'עדיין לא בוצע סנכרון עם Airtable. הנתונים נשמרים בדפדפן זה בלבד.';
+  $('disconnectBtn').hidden = !storageGet(TOKEN_KEY);
 }
 
 // ---------- Init ----------
@@ -696,21 +1000,20 @@ function init() {
     card.addEventListener('click', () => applyCardFilter(card.dataset.card))
   );
 
-  // CSV: the visible button opens the hidden file input.
   $('removeDuplicatesBtn').addEventListener('click', removeDuplicates);
-  $('exportCsvBtn').addEventListener('click', exportCSV);
-  $('importCsvBtn').addEventListener('click', () => $('importCsvInput').click());
-  $('importCsvInput').addEventListener('change', async (e) => {
-    await importCSV(e.target.files[0]);
-    e.target.value = ''; // allow selecting the same file again
-  });
 
-  $('resetDataBtn').addEventListener('click', () => {
-    if (!confirm('לאפס את כל הנתונים ולטעון מחדש את נתוני הדוגמה?\nכל השינויים שביצעת יימחקו.')) return;
+  $('syncBtn').addEventListener('click', syncFromAirtable);
+  $('disconnectBtn').addEventListener('click', disconnectAirtable);
+  renderSyncStatus();
+
+  $('resetDataBtn').addEventListener('click', async () => {
+    if (!(await askConfirm('לאפס את כל הנתונים ולטעון מחדש את נתוני הדוגמה?\nכל השינויים שביצעת יימחקו.', 'איפוס'))) return;
     leads = createSampleLeads();
     saveLeads();
+    storageSet(LAST_SYNC_KEY, null); // the data no longer comes from Airtable
     clearFilters();
     render();
+    renderSyncStatus();
   });
 }
 

@@ -18,15 +18,13 @@
       </div>
       <div class="header-actions">
         <button type="button" class="btn btn-ghost" id="removeDuplicatesBtn">הסרת כפילויות</button>
-        <button type="button" class="btn btn-ghost" id="exportCsvBtn">ייצוא ל-CSV</button>
-        <button type="button" class="btn btn-ghost" id="importCsvBtn">ייבוא מ-CSV</button>
-        <input type="file" id="importCsvInput" accept=".csv,text/csv" hidden>
+        <button type="button" class="btn btn-ghost" id="syncBtn">Sync מ-Airtable</button>
         <button type="button" class="btn btn-primary" id="addLeadBtn">+ הוסף ליד</button>
       </div>
     </div>
   </header>
 
-  <main class="container">
+  <main class="container" id="dashboardView">
     <!-- 4.1 Summary area -->
     <section class="summary" aria-label="סיכום">
       <button type="button" class="card" data-card="all">
@@ -110,15 +108,56 @@
     </section>
   </main>
 
+  <!-- Lead details page (opened from the table via #lead/<id>; rendered by js/lead-page.js) -->
+  <main class="container" id="leadView" hidden></main>
+
   <footer class="container app-footer">
-    <span>הנתונים נשמרים בדפדפן זה בלבד (localStorage).</span>
-    <button type="button" class="link-btn" id="resetDataBtn">איפוס לנתוני דוגמה</button>
+    <span id="syncStatus"></span>
+    <span class="footer-links">
+      <button type="button" class="link-btn" id="disconnectBtn" hidden>ניתוק מ-Airtable</button>
+      <button type="button" class="link-btn" id="resetDataBtn">איפוס לנתוני דוגמה</button>
+    </span>
   </footer>
+
+  <!-- In-page message / confirmation window (replaces the browser's alert() and confirm()) -->
+  <dialog id="messageDialog" class="dialog dialog-small">
+    <form method="dialog" class="lead-form">
+      <p id="messageText" class="message-text"></p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" value="ok" id="messageOkBtn">אישור</button>
+        <button type="submit" class="btn btn-ghost" value="cancel" id="messageCancelBtn">ביטול</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Airtable access token (entered once, saved only in this browser) -->
+  <dialog id="tokenDialog" class="dialog">
+    <form method="dialog" class="lead-form">
+      <h2>חיבור ל-Airtable</h2>
+      <p class="dialog-text">
+        כדי לסנכרן, צריך מפתח גישה אישי (Personal Access Token) של Airtable.
+        המפתח נשמר רק בדפדפן הזה, ולא נשלח לשום מקום חוץ מ-Airtable.
+      </p>
+      <p class="dialog-text">
+        יוצרים מפתח ב-<a href="https://airtable.com/create/tokens" target="_blank" rel="noopener">airtable.com/create/tokens</a>
+        עם ההרשאה <code dir="ltr">data.records:read</code> וגישה לבסיס "Candidate Pipeline" בלבד.
+      </p>
+      <div class="field">
+        <label for="tokenInput">מפתח גישה</label>
+        <input type="password" id="tokenInput" dir="ltr" autocomplete="off" spellcheck="false" required placeholder="הדביקו כאן את המפתח">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" value="save">שמירה וסנכרון</button>
+        <button type="submit" class="btn btn-ghost" value="cancel" formnovalidate>ביטול</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Add / Edit lead form (sections 7–8) -->
   <dialog id="leadDialog" class="dialog">
     <form id="leadForm" class="lead-form">
       <h2 id="dialogTitle">הוספת ליד</h2>
+      <p id="formNote" class="dialog-text form-note"></p>
       <input type="hidden" id="leadId">
 
       <div class="form-grid">
@@ -174,5 +213,6 @@
 
   <script src="js/csv.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/lead-page.js"></script>
 </body>
 </html>
