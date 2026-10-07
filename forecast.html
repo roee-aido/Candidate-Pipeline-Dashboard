@@ -30,8 +30,17 @@
           <button type="button" class="seg-btn" data-loc="netanya">נתניה</button>
           <button type="button" class="seg-btn" data-loc="telaviv">תל אביב</button>
         </div>
+        <div class="segmented" role="group" aria-label="סוג תצוגה">
+          <button type="button" class="seg-btn" data-mode="next48">48 השעות הקרובות</button>
+          <button type="button" class="seg-btn" data-mode="date">לפי תאריך</button>
+        </div>
+        <label class="date-field" id="dateField" hidden>
+          <span>תאריך</span>
+          <input type="date" id="dateInput">
+        </label>
         <button type="button" class="btn btn-ghost" id="refreshBtn">רענון</button>
       </div>
+      <p class="muted range-note" id="rangeNote" hidden></p>
 
       <div id="forecastStatus" aria-live="polite"></div>
       <div id="forecastContent"></div>
